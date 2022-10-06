@@ -16,8 +16,6 @@ class FuzzyTrack:
 @dataclass
 class Track(FuzzyTrack):
     fuzzy_matches: list = field(default_factory=list)
-    full_match: bool = False
-    not_found: bool = True
 
 
 @logger.catch
@@ -35,19 +33,16 @@ def get_html(url):
 @logger.catch
 def musify(track: Track):
     logger.info(f'{track.author} - {track.title}')
-    if track.full_match:
+    if track.url:
         return
     html = get_html(f'https://w1.musify.club/search?searchText={track.author} {track.title}')
     soup = BeautifulSoup(html.text, features='html.parser')
     results = soup.find_all('div', class_='playlist__item')[:2]
-    if results:
-        track.not_found = False
     for result in results:
         author = result.find_all('a')[0].text
         title = result.find_all('a')[1].text
-        url = 'https://musify.club/track' + result.find_all('a')[1].get('href')
+        url = 'https://musify.club' + result.find_all('a')[2].get('href')
         if track.author.lower() in author.lower() and track.title.lower() in title.lower():
-            track.full_match = True
             track.title = title
             track.author = author
             track.url = url
