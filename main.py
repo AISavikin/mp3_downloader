@@ -25,14 +25,16 @@ def main_window():
             my_thread.start()
         if event == 'full_match':
             full_match([track for track in tracks if track.full_match])
+        if event == 'save':
+            save_not_found([track for track in tracks if track.not_found])
 
     window.close()
 
 
 def full_match(tracks):
-    row1 = [[sg.Text(track.author)] for track in tracks if tracks.index(track) % 3 == 0]
-    row2 = [[sg.Text(track.author)] for track in tracks if tracks.index(track) % 3 == 1]
-    row3 = [[sg.Text(track.author)] for track in tracks if tracks.index(track) % 3 == 2]
+    row1 = [[sg.Text(f'{track.author} - {track.title}')] for track in tracks if tracks.index(track) % 3 == 0]
+    row2 = [[sg.Text(f'{track.author} - {track.title}')] for track in tracks if tracks.index(track) % 3 == 1]
+    row3 = [[sg.Text(f'{track.author} - {track.title}')] for track in tracks if tracks.index(track) % 3 == 2]
     layout = [
         [sg.Column(row1, vertical_alignment='top'), sg.Column(row2, vertical_alignment='top'),
          sg.Column(row3, vertical_alignment='top')]

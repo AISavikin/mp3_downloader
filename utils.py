@@ -7,12 +7,17 @@ from bs4 import BeautifulSoup
 
 
 @dataclass
-class Track:
+class FuzzyTrack:
     author: str
     title: str
+    url: str = ''
+
+
+@dataclass
+class Track(FuzzyTrack):
     fuzzy_matches: list = field(default_factory=list)
     full_match: bool = False
-    url: str = ''
+    not_found: bool = True
 
 
 @logger.catch
@@ -35,6 +40,8 @@ def musify(track: Track):
     html = get_html(f'https://w1.musify.club/search?searchText={track.author} {track.title}')
     soup = BeautifulSoup(html.text, features='html.parser')
     results = soup.find_all('div', class_='playlist__item')[:2]
+    if results:
+        track.not_found = False
     for result in results:
         author = result.find_all('a')[0].text
         title = result.find_all('a')[1].text
@@ -45,7 +52,8 @@ def musify(track: Track):
             track.author = author
             track.url = url
             break
-        track.fuzzy_matches.append(Track(author, title, url=url))
+        track.fuzzy_matches.append(FuzzyTrack(author, title, url=url))
+
 
 def get_track_list(path):
     """
@@ -58,13 +66,17 @@ def get_track_list(path):
     return [Track(tr.split('-')[0].strip(), tr.split('-')[1].strip()) for tr in tracks]
 
 
+def save_not_found(tracks):
+    with open('not_found.txt', 'w', encoding='utf-8') as f:
+        f.writelines([f'{track.author} - {track.title}\n' for track in tracks])
+
+
 def start(window, path, res: list):
     progress_bar = window['progress']
     track_list = get_track_list(path)
     i = 0
     progress_bar.Update(visible=True)
     for track in track_list:
-
         window['log'].update(f'Поиск:\n{track.author} - {track.title}')
         musify(track)
         res.append(track)
@@ -73,16 +85,4 @@ def start(window, path, res: list):
     window['full_match'].Update(disabled=False)
     window['fuzzy'].Update(disabled=False)
     window['save'].Update(disabled=False)
-    return track_list
-
-def main():
-    track_list = get_track_list()
-    for track in track_list:
-        musify(track)
-
-    fuzzy_tracks = [track for track in track_list if not track.full_match]
-    for track in fuzzy_tracks:
-        logger.info(track)
-
-if __name__ == '__main__':
-    main()
+    logger.info(track_list)
