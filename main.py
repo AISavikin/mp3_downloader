@@ -27,7 +27,6 @@ def main_window():
         if event == 'full_match':
             full_match([track for track in track_list if track.url])
         if event == 'fuzzy':
-            logger.debug(track_list)
             fuzzy_matches(track_list)
 
         if event == 'save':
