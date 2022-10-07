@@ -6,15 +6,16 @@ import vlc
 
 def main_window():
     layout = [
-        [sg.Input(readonly=True, key='path'), sg.FileBrowse('Файл'), sg.Button('Найти треки')],
-        [sg.Text(' ', k='log')],
-        [sg.ProgressBar(1, orientation='h', size=(20, 20), key='progress', expand_x=True, visible=False)],
-        [sg.Button('Список для скачивания', k='full_match', disabled=True),
-         sg.Button('Не точные совпадения', k='fuzzy', disabled=True),
+        [sg.Input(readonly=True, key='path'), sg.FileBrowse('Файл', file_types=(('TXT', '*.txt'),)),
+         sg.Button('Найти треки')],
+        [sg.Text('Поиск:\n', k='log')],
+        [sg.ProgressBar(1, orientation='h', size=(20, 20), key='progress', expand_x=True)],
+        [sg.Button('Список для скачивания', k='full_match'),
+         sg.Button('Не точные совпадения', k='fuzzy'),
          sg.Button('Сохранить не найденные', k='save', disabled=True)]
     ]
 
-    window = sg.Window('Поиск и скачивание MP3', layout)
+    window = sg.Window('Поиск и скачивание MP3', layout, size=(500, 150))
     track_list = []
     while True:
         event, values = window.read()
@@ -36,40 +37,43 @@ def main_window():
 
 
 def full_match(tracks):
-    row1 = [[sg.Text(f'{track.author} - {track.title}')] for track in tracks if tracks.index(track) % 3 == 0]
-    row2 = [[sg.Text(f'{track.author} - {track.title}')] for track in tracks if tracks.index(track) % 3 == 1]
-    row3 = [[sg.Text(f'{track.author} - {track.title}')] for track in tracks if tracks.index(track) % 3 == 2]
+    row1 = [[sg.Text(f'{track.author} - {track.title[:23]}')] for track in tracks if tracks.index(track) % 3 == 0]
+    row2 = [[sg.Text(f'{track.author} - {track.title[:23]}')] for track in tracks if tracks.index(track) % 3 == 1]
+    row3 = [[sg.Text(f'{track.author} - {track.title[:23]}')] for track in tracks if tracks.index(track) % 3 == 2]
+    main_column = [sg.Column(row1, vertical_alignment='top'),
+                   sg.Column(row2, vertical_alignment='top'),
+                   sg.Column(row3, vertical_alignment='top')]
+
     layout = [
-        [sg.Column(row1, vertical_alignment='top'), sg.Column(row2, vertical_alignment='top'),
-         sg.Column(row3, vertical_alignment='top')]
+        [sg.Column([main_column], vertical_scroll_only=True, scrollable=True, size_subsample_height=2)]
     ]
-    window = sg.Window('Список для скачивания', layout, resizable=True, )
+    window = sg.Window('Список для скачивания', layout, resizable=True)
     while True:
         event, values = window.read()
         if event == sg.WINDOW_CLOSED:
             break
     window.close()
 
+
 def fuzzy_matches(track_list):
     my_media = None
 
     tracks = [track for track in track_list if not track.url and track.fuzzy_matches]
-
+    logger.info(tracks)
     column = []
     for track in tracks:
         column.append([sg.Frame(f'{track.author} - {track.title}', [], expand_x=True)])
     for indx, frame in enumerate(column):
         frame[0].layout(
             [[sg.Button('▶', k=f'{indx}|{tracks[indx].fuzzy_matches.index(fuzz)}'), sg.Button('⏸'),
-              sg.Radio(f'{fuzz.author} - {fuzz.title}', indx, k=f'{indx}:{tracks[indx].fuzzy_matches.index(fuzz)}')]
+              sg.Radio(f'{fuzz.author} - {fuzz.title[:23]}', indx, k=f'{indx}:{tracks[indx].fuzzy_matches.index(fuzz)}')]
              for fuzz in tracks[indx].fuzzy_matches])
 
-
     layout = [
-        [sg.Column(column, vertical_alignment='top', scrollable=True, vertical_scroll_only=True)],
-        [sg.Button('Ок')]
+        [sg.Column(column, vertical_alignment='top', scrollable=True, vertical_scroll_only=True, size=(500, 600))],
+        [sg.Button('Добавить в список скачивания')]
     ]
-    window = sg.Window('Частичное совпадение', layout, resizable=True, )
+    window = sg.Window('Частичное совпадение', layout, resizable=True)
     while True:
         event, values = window.read()
 
@@ -97,6 +101,7 @@ def fuzzy_matches(track_list):
                 my_media = vlc.MediaPlayer(url_mp3)
                 my_media.play()
     window.close()
+
 
 def main():
     main_window()

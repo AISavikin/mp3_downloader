@@ -4,105 +4,38 @@ from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 from loguru import logger
 import vlc
-from utils import Track, FuzzyTrack
+from utils import Track, FuzzyTrack, get_track_list, get_html
 from requests.exceptions import SSLError, MissingSchema
 
-
-@logger.catch()
-def fuzzy_matches(track_list):
-    my_media = None
-
-    tracks = [track for track in track_list if not track.url and track.fuzzy_matches]
-
-    column = []
-    for track in tracks:
-        column.append([sg.Frame(f'{track.author} - {track.title}', [], expand_x=True)])
-    for indx, frame in enumerate(column):
-        frame[0].layout(
-            [[sg.Button('▶', k=f'{indx}|{tracks[indx].fuzzy_matches.index(fuzz)}'), sg.Button('⏸'),
-              sg.Radio(f'{fuzz.author} - {fuzz.title}', indx, k=f'{indx}:{tracks[indx].fuzzy_matches.index(fuzz)}')]
-             for fuzz in tracks[indx].fuzzy_matches])
-
-
-    layout = [
-        [sg.Column(column, vertical_alignment='top', scrollable=True, vertical_scroll_only=True)],
-        [sg.Button('Ок')]
-    ]
-    window = sg.Window('Частичное совпадение', layout, resizable=True, )
-    while True:
-        event, values = window.read()
-
-        if event == sg.WINDOW_CLOSED:
-            break
-        if event == 'Ок':
-            indx_url = [key for key in values if values[key]]
-            for i in indx_url:
-                indx_tr, indx_fuzz = map(int, i.split(':'))
-                track = tracks[indx_tr]
-                track.url = track.fuzzy_matches[indx_fuzz].url
-            break
-        if '⏸' in event:
-            if my_media:
-                my_media.stop()
-                my_media.release()
-                my_media = None
-
-        else:
-            if my_media:
-                pass
-            else:
-                indx_tr, indx_fuzz = map(int, event.split('|'))
-                url_mp3 = tracks[indx_tr].fuzzy_matches[indx_fuzz].url
-                my_media = vlc.MediaPlayer(url_mp3)
-                my_media.play()
-    window.close()
-
-def get_html(url, params=None):
-    ua = UserAgent()
-    try:
-        html = requests.get(url, headers={'User-Agent': ua.random}, params=params)
-    except SSLError as err:  # Проверка существование url
-        return
-    except MissingSchema as err:  # Проверка на схему (http/https)
-        return
-    return html
-
-@logger.catch()
-def drivemusic(track):
+@logger.catch
+def musify(track: Track):
     if track.url:
         return
-    logger.info(f'musify.club: {track.author} - {track.title}')
-
-    url = 'https://ru-drivemusic.net/'
+    url = 'https://w1.musify.club/search/'
     params = {
-        'do': 'search',
-        'subaction': 'search',
-        'story': f'{track.author} {track.title}',
+        'searchText': f'{track.author} {track.title}',
     }
     html = get_html(url, params)
-    soup = BeautifulSoup(html.text, features='html.parser')
-    if 'ничего не найдено' in soup.find('h1').text:
-        logger.error('Не найдено')
+    if not html:
         return
-    results = soup.find_all('div', class_='genre-music inline_player_playlist_main')
+    soup = BeautifulSoup(html.text, features='html.parser')
+    results = soup.find_all('div', class_='playlist__item')[:2]
+    if not results:
+        return
     for result in results:
-        hrefs = result.find_all('a')
-        author = hrefs[2].text
-        title = hrefs[1].text
-        url = hrefs[0].get('data-url')
+        author = result.find_all('a')[0].text
+        title = result.find_all('a')[1].text
+        url = 'https://musify.club' + result.find_all('a')[2].get('href')
         if track.author.lower() in author.lower() and track.title.lower() in title.lower():
-            logger.debug('Точное совпадение')
             track.title = title
             track.author = author
             track.url = url
             break
-        logger.debug('Не точно')
         track.fuzzy_matches.append(FuzzyTrack(author, title, url=url))
 
 
-tr = Track(author='Звери', title='Все что тебя касается')
-logger.debug(tr)
-drivemusic(tr)
-logger.debug(tr)
+tracks =  [Track(author='#дископровокация', title='Кавказское Диско', url='', fuzzy_matches=[FuzzyTrack(author='Дископровокация', title='Виталька', url='https://musify.club/track/dl/7048668/%d0%b4%d0%b8%d1%81%d0%ba%d0%be%d0%bf%d1%80%d0%be%d0%b2%d0%be%d0%ba%d0%b0%d1%86%d0%b8%d1%8f-%d0%b2%d0%b8%d1%82%d0%b0%d0%bb%d1%8c%d0%ba%d0%b0.mp3'), FuzzyTrack(author='Дископровокация', title='Дальнобойщица', url='https://musify.club/track/dl/7048674/%d0%b4%d0%b8%d1%81%d0%ba%d0%be%d0%bf%d1%80%d0%be%d0%b2%d0%be%d0%ba%d0%b0%d1%86%d0%b8%d1%8f-%d0%b4%d0%b0%d0%bb%d1%8c%d0%bd%d0%be%d0%b1%d0%be%d0%b8%d1%89%d0%b8%d1%86%d0%b0.mp3')]), Track(author='Екатерина Яшникова', title='Песня о себе', url='', fuzzy_matches=[FuzzyTrack(author='Екатерина Яшникова', title='О Недописанных Песнях', url='https://musify.club/track/dl/17936611/%d0%b5%d0%ba%d0%b0%d1%82%d0%b5%d1%80%d0%b8%d0%bd%d0%b0-%d1%8f%d1%88%d0%bd%d0%b8%d0%ba%d0%be%d0%b2%d0%b0-%d0%be-%d0%bd%d0%b5%d0%b4%d0%be%d0%bf%d0%b8%d1%81%d0%b0%d0%bd%d0%bd%d1%8b%d1%85-%d0%bf%d0%b5%d1%81%d0%bd%d1%8f%d1%85.mp3')]), Track(author='Кошки Jam', title='Солнце (Купи мне гитару)', url='', fuzzy_matches=[FuzzyTrack(author='Feel Well', title='Солнце Купи Мне Гитару', url='https://musify.club/track/dl/2805638/feel-well-%d1%81%d0%be%d0%bb%d0%bd%d1%86%d0%b5-%d0%ba%d1%83%d0%bf%d0%b8-%d0%bc%d0%bd%d0%b5-%d0%b3%d0%b8%d1%82%d0%b0%d1%80%d1%83.mp3')]), Track(author='Паша Руденко', title='Ебш', url='', fuzzy_matches=[FuzzyTrack(author='Паша Руденко', title='Пятница', url='https://musify.club/track/dl/13737391/%d0%bf%d0%b0%d1%88%d0%b0-%d1%80%d1%83%d0%b4%d0%b5%d0%bd%d0%ba%d0%be-%d0%bf%d1%8f%d1%82%d0%bd%d0%b8%d1%86%d0%b0.mp3'), FuzzyTrack(author='Паша Руденко', title='Немой', url='https://musify.club/track/dl/10640390/%d0%bf%d0%b0%d1%88%d0%b0-%d1%80%d1%83%d0%b4%d0%b5%d0%bd%d0%ba%d0%be-%d0%bd%d0%b5%d0%bc%d0%be%d0%b8.mp3')]), Track(author='Пневмослон', title='Ебашу как в последний раз', url='', fuzzy_matches=[FuzzyTrack(author='Пневмослон', title='Ебашу, Как В Последний Раз', url='https://musify.club/track/dl/9303415/%d0%bf%d0%bd%d0%b5%d0%b2%d0%bc%d0%be%d1%81%d0%bb%d0%be%d0%bd-%d0%b5%d0%b1%d0%b0%d1%88%d1%83-%d0%ba%d0%b0%d0%ba-%d0%b2-%d0%bf%d0%be%d1%81%d0%bb%d0%b5%d0%b4%d0%bd%d0%b8%d0%b8-%d1%80%d0%b0%d0%b7.mp3'), FuzzyTrack(author='Порнофильмы', title='Как в последний раз', url='https://musify.club/track/dl/6934317/%d0%bf%d0%be%d1%80%d0%bd%d0%be%d1%84%d0%b8%d0%bb%d1%8c%d0%bc%d1%8b-%d0%ba%d0%b0%d0%ba-%d0%b2-%d0%bf%d0%be%d1%81%d0%bb%d0%b5%d0%b4%d0%bd%d0%b8%d0%b8-%d1%80%d0%b0%d0%b7.mp3')]), Track(author='Драгни', title='Не парься!', url='', fuzzy_matches=[FuzzyTrack(author='Башаков', title='Не Парься', url='https://musify.club/track/dl/3415278/%d0%b1%d0%b0%d1%88%d0%b0%d0%ba%d0%be%d0%b2-%d0%bd%d0%b5-%d0%bf%d0%b0%d1%80%d1%8c%d1%81%d1%8f.mp3'), FuzzyTrack(author='Механизм', title='Не Парься!', url='https://musify.club/track/dl/7247954/%d0%bc%d0%b5%d1%85%d0%b0%d0%bd%d0%b8%d0%b7%d0%bc-%d0%bd%d0%b5-%d0%bf%d0%b0%d1%80%d1%8c%d1%81%d1%8f.mp3')]), Track(author='GALAGA', title='Супер Марио', url='', fuzzy_matches=[FuzzyTrack(author='Радиоактивный Покемон', title='Супер Марио (rock version)', url='https://musify.club/track/dl/16186313/%d1%80%d0%b0%d0%b4%d0%b8%d0%be%d0%b0%d0%ba%d1%82%d0%b8%d0%b2%d0%bd%d1%8b%d0%b8-%d0%bf%d0%be%d0%ba%d0%b5%d0%bc%d0%be%d0%bd-%d1%81%d1%83%d0%bf%d0%b5%d1%80-%d0%bc%d0%b0%d1%80%d0%b8%d0%be-rock-version.mp3'), FuzzyTrack(author='Марион', title='Супермаркет', url='https://musify.club/track/dl/5128590/%d0%bc%d0%b0%d1%80%d0%b8%d0%be%d0%bd-%d1%81%d1%83%d0%bf%d0%b5%d1%80%d0%bc%d0%b0%d1%80%d0%ba%d0%b5%d1%82.mp3')]), Track(author='ANAZED', title='И я', url='', fuzzy_matches=[FuzzyTrack(author='Лариса Черникова', title='И ты и я, и я и ты', url='https://musify.club/track/dl/1532653/%d0%bb%d0%b0%d1%80%d0%b8%d1%81%d0%b0-%d1%87%d0%b5%d1%80%d0%bd%d0%b8%d0%ba%d0%be%d0%b2%d0%b0-%d0%b8-%d1%82%d1%8b-%d0%b8-%d1%8f-%d0%b8-%d1%8f-%d0%b8-%d1%82%d1%8b.mp3'), FuzzyTrack(author='Умка', title='Я И Я', url='https://musify.club/track/dl/11262259/%d1%83%d0%bc%d0%ba%d0%b0-%d1%8f-%d0%b8-%d1%8f.mp3')]), Track(author='Moon Hooch', title='Acid Mountain', url='', fuzzy_matches=[FuzzyTrack(author='Moon Hooch', title='Mountain Lion', url='https://musify.club/track/dl/7318094/moon-hooch-mountain-lion.mp3'), FuzzyTrack(author='Moon Hooch', title='Mountain Song', url='https://musify.club/track/dl/5914894/moon-hooch-mountain-song.mp3')]), Track(author='Haley Reinhart', title='Creep', url='', fuzzy_matches=[FuzzyTrack(author="Scott Bradlee's Postmodern Jukebox", title='Creep (Feat. Haley Reinhart)', url='https://musify.club/track/dl/5577350/scott-bradlees-postmodern-jukebox-creep-feat-haley-reinhart.mp3'), FuzzyTrack(author='Haley Reinhart', title='Better', url='https://musify.club/track/dl/6327279/haley-reinhart-better.mp3')]), Track(author='White Punk', title='Трансгуманизм', url='', fuzzy_matches=[FuzzyTrack(author='White Punk', title='Вампиръ (Produced By White Punk)', url='https://musify.club/track/dl/10876671/white-punk-%d0%b2%d0%b0%d0%bc%d0%bf%d0%b8%d1%80%d1%8a-produced-by-white-punk.mp3'), FuzzyTrack(author='White Punk', title='Мёртв Внутри (Produced By White Punk)', url='https://musify.club/track/dl/10876672/white-punk-%d0%bc%d0%b5%d1%80%d1%82%d0%b2-%d0%b2%d0%bd%d1%83%d1%82%d1%80%d0%b8-produced-by-white-punk.mp3')]), Track(author='Scott Bradlee’s Postmodern Jukebox', title="Don't Speak", url='', fuzzy_matches=[FuzzyTrack(author="Scott Bradlee's Postmodern Jukebox", title="I Don't Mind", url='https://musify.club/track/dl/5631081/scott-bradlees-postmodern-jukebox-i-dont-mind.mp3'), FuzzyTrack(author="Scott Bradlee's Postmodern Jukebox", title="Don't Stop (Live)", url='https://musify.club/track/dl/8692995/scott-bradlees-postmodern-jukebox-dont-stop-live.mp3')]), Track(author='Lesley Gore', title="You Don't Own Me", url='', fuzzy_matches=[FuzzyTrack(author='Ann Wilson', title="You Don't Own Me (Lesley Gore)", url='https://musify.club/track/dl/9916639/ann-wilson-you-dont-own-me-lesley-gore.mp3'), FuzzyTrack(author='Eminem', title="Lesley Gore - You Don't Own Me (Untitled)", url='https://musify.club/track/dl/955833/eminem-lesley-gore-you-dont-own-me-untitled.mp3')]), Track(author='АИГЕЛ', title='Тебе кажется', url='', fuzzy_matches=[FuzzyTrack(author='Мимо Вселенной', title='Тебе Кажется', url='https://musify.club/track/dl/8200410/%d0%bc%d0%b8%d0%bc%d0%be-%d0%b2%d1%81%d0%b5%d0%bb%d0%b5%d0%bd%d0%bd%d0%be%d0%b8-%d1%82%d0%b5%d0%b1%d0%b5-%d0%ba%d0%b0%d0%b6%d0%b5%d1%82%d1%81%d1%8f.mp3'), FuzzyTrack(author='Фристайл', title='Это все тебе кажется', url='https://musify.club/track/dl/5149442/%d1%84%d1%80%d0%b8%d1%81%d1%82%d0%b0%d0%b8%d0%bb-%d1%8d%d1%82%d0%be-%d0%b2%d1%81%d0%b5-%d1%82%d0%b5%d0%b1%d0%b5-%d0%ba%d0%b0%d0%b6%d0%b5%d1%82%d1%81%d1%8f.mp3')]), Track(author='Тропы не врут', title='Фея', url='', fuzzy_matches=[FuzzyTrack(author='Тропы Не Врут', title='Ненадолго', url='https://musify.club/track/dl/5770358/%d1%82%d1%80%d0%be%d0%bf%d1%8b-%d0%bd%d0%b5-%d0%b2%d1%80%d1%83%d1%82-%d0%bd%d0%b5%d0%bd%d0%b0%d0%b4%d0%be%d0%bb%d0%b3%d0%be.mp3'), FuzzyTrack(author='Тропы Не Врут', title='Ассоль', url='https://musify.club/track/dl/6236071/%d1%82%d1%80%d0%be%d0%bf%d1%8b-%d0%bd%d0%b5-%d0%b2%d1%80%d1%83%d1%82-%d0%b0%d1%81%d1%81%d0%be%d0%bb%d1%8c.mp3')]), Track(author='Лорд Пневмослон', title='В пизду', url='', fuzzy_matches=[FuzzyTrack(author='Пневмослон', title='В Пизду', url='https://musify.club/track/dl/9303416/%d0%bf%d0%bd%d0%b5%d0%b2%d0%bc%d0%be%d1%81%d0%bb%d0%be%d0%bd-%d0%b2-%d0%bf%d0%b8%d0%b7%d0%b4%d1%83.mp3'), FuzzyTrack(author='Саблезубый Тигр', title='Насилие В Семье (Лорд Пневмослон Cover)', url='https://musify.club/track/dl/9632063/%d1%81%d0%b0%d0%b1%d0%bb%d0%b5%d0%b7%d1%83%d0%b1%d1%8b%d0%b8-%d1%82%d0%b8%d0%b3%d1%80-%d0%bd%d0%b0%d1%81%d0%b8%d0%bb%d0%b8%d0%b5-%d0%b2-%d1%81%d0%b5%d0%bc%d1%8c%d0%b5-%d0%bb%d0%be%d1%80%d0%b4-%d0%bf%d0%bd%d0%b5%d0%b2%d0%bc%d0%be%d1%81%d0%bb%d0%be%d0%bd-cover.mp3')]), Track(author='Jahmal TGK', title='Маятник', url='', fuzzy_matches=[FuzzyTrack(author='Big Mic [TGK]', title='Сегодня feat. Jahmal TGK', url='https://musify.club/track/dl/5294494/big-mic-tgk-%d1%81%d0%b5%d0%b3%d0%be%d0%b4%d0%bd%d1%8f-feat-jahmal-tgk.mp3'), FuzzyTrack(author='Jahmal', title='Перезаряженный feat.VibeTGK (music by: DjPu3aTGK, Jahmal[TGK])', url='https://musify.club/track/dl/7034602/jahmal-%d0%bf%d0%b5%d1%80%d0%b5%d0%b7%d0%b0%d1%80%d1%8f%d0%b6%d0%b5%d0%bd%d0%bd%d1%8b%d0%b8-feat-vibetgk-music-by-djpu3atgk-jahmal-tgk.mp3')]), Track(author='Света Бень', title='Прощай, Тур де Франс!', url='', fuzzy_matches=[FuzzyTrack(author='Бенька', title='Прощай, Тур Де Франс!', url='https://musify.club/track/dl/16037752/%d0%b1%d0%b5%d0%bd%d1%8c%d0%ba%d0%b0-%d0%bf%d1%80%d0%be%d1%89%d0%b0%d0%b8-%d1%82%d1%83%d1%80-%d0%b4%d0%b5-%d1%84%d1%80%d0%b0%d0%bd%d1%81.mp3')]), Track(author='Polo & Pan', title='Jacquadi', url='', fuzzy_matches=[FuzzyTrack(author='Polo & Pan', title='Peter Pan', url='https://musify.club/track/dl/17464171/polo-and-pan-peter-pan.mp3'), FuzzyTrack(author='Polo & Pan', title='Canopée', url='https://musify.club/track/dl/7847756/polo-and-pan-canopee.mp3')]), Track(author="Fool's Garden", title='Why Did She Go ?', url='', fuzzy_matches=[FuzzyTrack(author="Fool's Garden", title='Why Did She Go?', url='https://musify.club/track/dl/540890/fools-garden-why-did-she-go.mp3'), FuzzyTrack(author='Blues Underground', title='Why Did She Go?', url='https://musify.club/track/dl/6302466/blues-underground-why-did-she-go.mp3')]), Track(author='Монеточка', title='Я Лиза', url='', fuzzy_matches=[FuzzyTrack(author='Монеточка', title='Я - Лиза', url='https://musify.club/track/dl/6037815/%d0%bc%d0%be%d0%bd%d0%b5%d1%82%d0%be%d1%87%d0%ba%d0%b0-%d1%8f-%d0%bb%d0%b8%d0%b7%d0%b0.mp3'), FuzzyTrack(author='Монеточка', title='Мама Я Не Зигую', url='https://musify.club/track/dl/10182135/%d0%bc%d0%be%d0%bd%d0%b5%d1%82%d0%be%d1%87%d0%ba%d0%b0-%d0%bc%d0%b0%d0%bc%d0%b0-%d1%8f-%d0%bd%d0%b5-%d0%b7%d0%b8%d0%b3%d1%83%d1%8e.mp3')])]
 
-# log.info(UserAgent().random)
+
+
+musify(Track('Сплин', 'Танцуй'))
