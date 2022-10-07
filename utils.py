@@ -42,6 +42,8 @@ def musify(track: Track):
         'searchText': f'{track.author} {track.title}',
     }
     html = get_html(url, params)
+    if not html:
+        return
     soup = BeautifulSoup(html.text, features='html.parser')
     results = soup.find_all('div', class_='playlist__item')[:2]
     if not results:
@@ -69,6 +71,8 @@ def drivemusic(track):
         'story': f'{track.author} {track.title}',
     }
     html = get_html(url, params)
+    if not html:
+        return
     soup = BeautifulSoup(html.text, features='html.parser')
     if 'ничего не найдено' in soup.find('h1').text:
         return
@@ -97,6 +101,8 @@ def mp3bob(track):
         'story': f'{track.author} {track.title}',
     }
     html = get_html(url, params)
+    if not html:
+        return
     soup = BeautifulSoup(html.text, features='html.parser')
     results = soup.find('div', class_='wrapp sort_page')
     if 'поиск по сайту не дал никаких результатов' in results.text:

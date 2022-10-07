@@ -15,7 +15,7 @@ def main_window():
          sg.Button('Сохранить не найденные', k='save', disabled=True)]
     ]
 
-    window = sg.Window('Поиск и скачивание MP3', layout, size=(500, 150))
+    window = sg.Window('Поиск и скачивание MP3', layout, size=(510, 150))
     track_list = []
     while True:
         event, values = window.read()
@@ -59,7 +59,6 @@ def fuzzy_matches(track_list):
     my_media = None
 
     tracks = [track for track in track_list if not track.url and track.fuzzy_matches]
-    logger.info(tracks)
     column = []
     for track in tracks:
         column.append([sg.Frame(f'{track.author} - {track.title}', [], expand_x=True)])
