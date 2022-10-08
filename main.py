@@ -1,7 +1,8 @@
-import PySimpleGUI as sg
 from utils import *
 import threading
 import vlc
+
+log.add('log/debug.log')
 
 
 def main_window():
@@ -12,10 +13,11 @@ def main_window():
         [sg.ProgressBar(1, orientation='h', size=(20, 20), key='progress', expand_x=True)],
         [sg.Button('Список для скачивания', k='full_match'),
          sg.Button('Не точные совпадения', k='fuzzy'),
-         sg.Button('Сохранить не найденные', k='save', disabled=True)]
+         sg.Button('Скачать', disabled=True, k='download')],
+        [sg.Button('Сохранить не найденные', k='save', disabled=True)]
     ]
 
-    window = sg.Window('Поиск и скачивание MP3', layout, size=(510, 150))
+    window = sg.Window('Поиск и скачивание MP3', layout, size=(510, 170))
     track_list = []
     while True:
         event, values = window.read()
@@ -23,15 +25,24 @@ def main_window():
             break
 
         if event == 'Найти треки':
-            my_thread = threading.Thread(target=start, args=(window, values['path'], track_list))
+            my_thread = threading.Thread(target=find_tracks, args=(window, values['path'], track_list))
             my_thread.start()
+
         if event == 'full_match':
             full_match([track for track in track_list if track.url])
+
         if event == 'fuzzy':
             fuzzy_matches(track_list)
 
         if event == 'save':
             save_not_found([track for track in track_list if not track.url])
+
+        if event == 'download':
+            for_download = [track for track in track_list if track.url]
+            window['progress'].Update(0, len(for_download))
+            my_thread = threading.Thread(target=start_download,
+                                         args=(window, for_download))
+            my_thread.start()
 
     window.close()
 
@@ -70,7 +81,7 @@ def fuzzy_matches(track_list):
 
     layout = [
         [sg.Column(column, vertical_alignment='top', scrollable=True, vertical_scroll_only=True, size=(500, 600))],
-        [sg.Button('Добавить в список скачивания')]
+        [sg.Button('Добавить в список скачивания', k='Ок')]
     ]
     window = sg.Window('Частичное совпадение', layout, resizable=True)
     while True:
