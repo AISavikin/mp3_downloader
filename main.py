@@ -1,8 +1,11 @@
-from utils import *
+import PySimpleGUI as sg
 import threading
 import vlc
-
-log.add('log/debug.log')
+from utils import *
+from business_logic import find_tracks
+log.add('log/debug.log', level='DEBUG')
+log.add('log/info.log', level='INFO')
+log.add('log/error.log', level='ERROR')
 
 
 def main_window():
