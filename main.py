@@ -59,7 +59,7 @@ def full_match(tracks):
                    sg.Column(row3, vertical_alignment='top')]
 
     layout = [
-        [sg.Column([main_column], vertical_scroll_only=True, scrollable=True, size_subsample_height=2)]
+        [sg.Column([main_column], vertical_scroll_only=True, scrollable=True, size_subsample_height=2, size=(800, 600))]
     ]
     window = sg.Window('Список для скачивания', layout, resizable=True)
     while True:
