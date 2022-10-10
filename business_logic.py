@@ -29,25 +29,28 @@ def get_track_list(path):
         track_list.append(Track(author, title))
     return track_list
 
-
 def find_tracks(window, path, res: list):
+    try:
+        tracks = get_track_list(path)
+    except FileNotFoundError:
+        window['log'].update(f'Файл не найден!')
+        return
     progress_bar = window['progress']
-    tracks = get_track_list(path)
-    i = 0
-    for track in tracks:
+    progress_bar.Update(visible=True)
+    for i, track in enumerate(tracks, 1):
         if check(track):
-            i += 1
             progress_bar.update_bar(i, len(tracks))
             continue
-        window['log'].update(f'Поиск:\n{track.author} - {track.title}')
+        window['log'].update(f'Поиск:\n{track.author[:37]} - {track.title[:37]}')
         musify(track)
         drivemusic(track)
         mp3bob(track)
         res.append(track)
-        i += 1
         progress_bar.update_bar(i, len(tracks))
     window['save'].Update(disabled=False)
     window['download'].Update(disabled=False)
+    progress_bar.Update(visible=False)
+
 
 
 def musify(track: Track):

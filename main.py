@@ -13,14 +13,15 @@ def main_window():
         [sg.Input(readonly=True, key='path'), sg.FileBrowse('Файл', file_types=(('TXT', '*.txt'),)),
          sg.Button('Найти треки')],
         [sg.Text('Поиск:\n', k='log')],
-        [sg.ProgressBar(1, orientation='h', size=(20, 20), key='progress', expand_x=True)],
-        [sg.Button('Список для скачивания', k='full_match'),
+        [sg.ProgressBar(1, orientation='h', size=(20, 20), key='progress_file', expand_x=True, visible=False)],
+        [sg.ProgressBar(1, orientation='h', size=(20, 20), key='progress', expand_x=True, visible=False)],
+        [sg.Button('Для скачивания', k='full_match'),
          sg.Button('Не точные совпадения', k='fuzzy'),
-         sg.Button('Скачать', disabled=True, k='download')],
-        [sg.Button('Сохранить не найденные', k='save', disabled=True)]
+         sg.Button('Скачать', disabled=True, k='download'),
+         sg.Button('Сохранить не найденные', k='save', disabled=True)]
     ]
 
-    window = sg.Window('Поиск и скачивание MP3', layout, size=(510, 170))
+    window = sg.Window('Поиск и скачивание MP3', layout)
     track_list = []
     while True:
         event, values = window.read()
@@ -43,6 +44,7 @@ def main_window():
         if event == 'download':
             for_download = [track for track in track_list if track.url]
             window['progress'].Update(0, len(for_download))
+            window['progress_file'].Update(0, len(for_download))
             my_thread = threading.Thread(target=start_download,
                                          args=(window, for_download))
             my_thread.start()

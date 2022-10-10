@@ -6,10 +6,15 @@ from loguru import logger as log
 import PySimpleGUI as sg
 
 
-def download(track):
+def download(track, progress):
     file_name = Path('MP3', f'{track.author} - {track.title}.mp3')
-    with open(file_name, 'wb') as f:
-        f.write(requests.get(track.url).content)
+    response = requests.request("GET", track.url, stream=True, data=None, headers=None)
+    max_val = int(response.headers['Content-Length']) / 10000
+    with open(file_name, 'ab') as f:
+        for i, chunk in enumerate(response.iter_content(chunk_size=10000)):
+            if chunk:
+                f.write(chunk)
+                progress.Update(i, max_val - 1)
 
 
 def down_win(track):
@@ -26,13 +31,8 @@ def down_win(track):
         if event == sg.WIN_CLOSED:
             break
         if event == 'OK':
-            response = requests.request("GET", track.url, stream=True, data=None, headers=None)
-            max_val = int(response.headers['Content-Length']) / 10000
-            with open('TEST.mp3', 'ab') as f:
-                for i, chunk in enumerate(response.iter_content(chunk_size=10000)):
-                    if chunk:
-                        f.write(chunk)
-                        window['progress'].Update(i, max_val+1)
+            progress = window['progress']
+            download(track, progress)
     window.close()
 
 

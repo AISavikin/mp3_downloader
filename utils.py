@@ -32,20 +32,30 @@ def check(track):
         log.info(f'{file_name} Уже существует')
         return True
 
+
 def strip_char(word: str):
     chars = r'?*<>:"\/|'
     for char in chars:
         word = word.replace(char, '')
     return word.strip()
 
-def download(track):
+
+def download(track, progress):
     file_name = Path('MP3', f'{track.author} - {track.title}.mp3')
-    with open(file_name, 'wb') as f:
-        f.write(requests.get(track.url).content)
+    response = requests.request("GET", track.url, stream=True, data=None, headers=None)
+    max_val = int(response.headers['Content-Length']) / 10000
+    with open(file_name, 'ab') as f:
+        for i, chunk in enumerate(response.iter_content(chunk_size=10000)):
+            if chunk:
+                f.write(chunk)
+                progress.Update(i, max_val - 1)
 
 
 def start_download(window, tracks):
     progress_bar = window['progress']
+    progress_file = window['progress_file']
+    progress_bar.Update(visible=True)
+    progress_file.Update(visible=True)
     i = 0
     for track in tracks:
         if check(track):
@@ -53,7 +63,9 @@ def start_download(window, tracks):
             progress_bar.update_bar(i, len(tracks))
             continue
         window['log'].update(f'Скачиваю:\n{track.author} - {track.title}')
-        download(track)
+        download(track, progress_file)
         i += 1
         progress_bar.update_bar(i, len(tracks))
     window['log'].update(f'Скачивание завершено!\n{i} Треков')
+    progress_bar.Update(visible=False)
+    progress_file.Update(visible=False)
