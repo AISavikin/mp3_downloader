@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 from utils import check, get_html, log, strip_char
 from bs4 import BeautifulSoup
 
-
 @dataclass
 class FuzzyTrack:
     author: str

@@ -1,48 +1,52 @@
 import requests
 import urllib3
 from pathlib import Path
-from business_logic import Track
+from business_logic import Track, BeautifulSoup, FuzzyTrack
+from utils import get_html, UserAgent, strip_char
 from loguru import logger as log
 import PySimpleGUI as sg
 
+@log.catch
+def mp3store(track: Track):
+    if track.url:
+        return
+    base_url = 'https://mp3store.net/'
+    url = f'{base_url}get-search/{track.author} {track.title}'
 
-def download(track, progress):
-    file_name = Path('MP3', f'{track.author} - {track.title}.mp3')
-    response = requests.request("GET", track.url, stream=True, data=None, headers=None)
-    max_val = int(response.headers['Content-Length']) / 10000
-    with open(file_name, 'ab') as f:
-        for i, chunk in enumerate(response.iter_content(chunk_size=10000)):
-            if chunk:
-                f.write(chunk)
-                progress.Update(i, max_val - 1)
-
-
-def down_win(track):
-    layout = [
-        [sg.Text(f'Скачиваю {track.author} - {track.title}')],
-        [sg.ProgressBar(1, orientation='h', size=(20, 20), key='progress')],
-        [sg.Button('OK')]
-
-    ]
-
-    window = sg.Window('!!!!!!!!!', layout)
-    while True:
-        event, val = window.read()
-        if event == sg.WIN_CLOSED:
+    html = get_html(url)
+    if not html:
+        return
+    soup = BeautifulSoup(html.text, features='html.parser')
+    results = soup.find_all('div', class_='music')[:3]
+    if not results:
+        return
+    for result in results:
+        author = result.find('b').text
+        title = result.find('div', class_='music-info').text[len(author) + 1:]
+        author, title = map(strip_char, (author, title))
+        html = get_html(base_url + result.find('a').get('href'))
+        soup = BeautifulSoup(html.text, features='html.parser')
+        url = base_url + soup.find('div', class_='info-panel').find('a').get('href')
+        if track.author.lower() in author.lower() and track.title.lower() in title.lower():
+            track.title = title
+            track.author = author
+            track.url = url
             break
-        if event == 'OK':
-            progress = window['progress']
-            download(track, progress)
-    window.close()
+        track.fuzzy_matches.append(FuzzyTrack(author, title, url=url))
 
 
-track = Track('Сплин', 'Выхода нет', url='https://mp3bob.ru/download/muz/Splin_-_Vykhoda_net_[mp3pulse.ru]_sample.mp3')
-down_win(track)
-# response = requests.request("GET", track.url, stream=True, data=None, headers=None)
-# log.info(int(response.headers['Content-Length']) / 10000)
-# chunks = response.headers
-# with open('TEST.mp3', 'ab') as f:
-#     for chunk in response.iter_content(chunk_size=10000):
-#             if chunk:
-#                 f.write(chunk)
-#                 log.info(chunk)
+def mp3_download():
+    url = 'https://mp3store.net/get-music/splin-vyhoda-net-djgraff-hype-ext-mix/'
+    html = get_html(url)
+    soup = BeautifulSoup(html.text, features='html.parser')
+    mp3_url = 'https://mp3store.net/' + soup.find('div', class_='info-panel').find('a').get('href')
+    response = requests.request("GET", mp3_url, stream=True, data=None, headers={'User-Agent': UserAgent().random})
+    log.debug(response.headers)
+
+
+if __name__ == '__main__':
+    tr = Track('алое вера', 'ты что такой')
+    # tr = Track('sasf','me')
+    mp3store(tr)
+    log.debug(tr)
+    # mp3_download()

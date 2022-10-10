@@ -54,17 +54,15 @@ def download(track, progress):
 def start_download(window, tracks):
     progress_bar = window['progress']
     progress_file = window['progress_file']
-    progress_bar.Update(visible=True)
+    progress_bar.Update(0, visible=True)
     progress_file.Update(visible=True)
     i = 0
-    for track in tracks:
+    for i, track in enumerate(tracks, 1):
         if check(track):
-            i += 1
             progress_bar.update_bar(i, len(tracks))
             continue
         window['log'].update(f'Скачиваю:\n{track.author} - {track.title}')
         download(track, progress_file)
-        i += 1
         progress_bar.update_bar(i, len(tracks))
     window['log'].update(f'Скачивание завершено!\n{i} Треков')
     progress_bar.Update(visible=False)

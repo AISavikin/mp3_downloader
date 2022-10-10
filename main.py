@@ -43,8 +43,6 @@ def main_window():
 
         if event == 'download':
             for_download = [track for track in track_list if track.url]
-            window['progress'].Update(0, len(for_download))
-            window['progress_file'].Update(0, len(for_download))
             my_thread = threading.Thread(target=start_download,
                                          args=(window, for_download))
             my_thread.start()
