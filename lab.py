@@ -1,37 +1,64 @@
 import requests
 import urllib3
 from pathlib import Path
-from business_logic import Track, BeautifulSoup, FuzzyTrack, mp3store
-from utils import UserAgent, strip_char, SSLError, MissingSchema, InvalidSchema, get_html
+from business_logic import Track, BeautifulSoup, FuzzyTrack, mp3store, get_track_list
+from utils import UserAgent, SSLError, MissingSchema, InvalidSchema, get_html, time_it, strip_char
 from loguru import logger as log
 import PySimpleGUI as sg
-import time
+import multiprocessing
+
+def musify(track: Track):
+    if track.url:
+        return
+    author_fs = strip_char(track.author)
+    title_fs = strip_char(track.title)
+    url = 'https://w1.musify.club/search'
+    params = {
+        'searchText': f'{track.author} {track.title}',
+    }
+    html = get_html(url, params)
+    if not html:
+        return
+    soup = BeautifulSoup(html.text, features='html.parser')
+    results = soup.find_all('div', class_='playlist__item')[:2]
+    if not results:
+        log.error(f'{track.author} - {track.title}: Не найдено')
+        return track
+    for result in results:
+        author = result.find_all('a')[0].text
+        title = result.find_all('a')[1].text
+        if ' - ' in title:  # TODO убедится, что нет ошибок
+            title = title.split(' - ')[1]
+        url = 'https://musify.club' + result.find_all('a')[2].get('href')
+        if author_fs.lower() in strip_char(author).lower() and title_fs.lower() in strip_char(title).lower():
+            log.info(f'{track.author} - {track.title}: Точное совпадение')  # LOGS
+            log.info(f'{author} - {title}')  # LOGS
+            track.title = strip_char(title, find=False)
+            track.author = strip_char(author, find=False)
+            track.url = url
+            return track
+        log.debug(f'{track.author} - {track.title}: Не точное совпадение')  # LOGS
+        log.debug(f'{author} - {title}')  # LOGS
+        track.fuzzy_matches.append(FuzzyTrack(author, title, url=url))
+        log.error(track)
+        return track
 
 
-def time_it(func):
-    def wrapper(*args, **kargs):
-        start_time = time.time()
-        res = func(*args, **kargs)
-        res_time = time.time() - start_time
-        print(f'Время выолнения {round(float(res_time), 3)}')
-        return res
 
-    return wrapper
 
-@time_it
-@log.catch
-def pars_YM(path):
-    with open(path, encoding='utf-8') as f:
-        tarcks = f.readlines()
-    for track in tarcks:
-        log.debug(track)
-        url = 'https://music.yandex.ru/search'
-        ua = 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 YaBrowser/22.9.1 Yowser/2.5 Safari/537.36'
-        html = requests.get(url, headers={'User-Agent': ua}, params={'text': track}).text
-        soup = BeautifulSoup(html, features='html.parser')
-        author = soup.find('span', class_='d-track__artists').find('a').get('title')
-        title = soup.find('div', class_='d-track__name').get('title')
-        log.info(f'{author} - {title}')
 
 if __name__ == '__main__':
-    pars_YM('ira_playlist.txt')
+    tracklist = get_track_list('txt/test_tracks.txt')
+    full = [track for track in tracklist if track.url]
+    log.debug(len(full))
+    print(multiprocessing.cpu_count())
+    with multiprocessing.Pool(16) as p:
+        res = p.map(musify, tracklist)
+
+    tracklist = res
+    full = [track for track in tracklist if track.url]
+    log.debug(len(full))
+
+    log.info(res)
+
+

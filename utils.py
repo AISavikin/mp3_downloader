@@ -4,7 +4,20 @@ from pathlib import Path
 from fake_useragent import UserAgent
 from loguru import logger as log
 from requests.exceptions import SSLError, MissingSchema, InvalidSchema
+import time
 
+new_level = log.level("TIME", no=38, color="<yellow>")
+
+
+def time_it(func):
+    def wrapper(*args, **kargs):
+        start_time = time.time()
+        res = func(*args, **kargs)
+        res_time = time.time() - start_time
+        log.log('TIME', f'Время выолнения {round(float(res_time), 3)} секунд')
+        return res
+
+    return wrapper
 
 def get_html(url, params=None):
     try:
@@ -24,7 +37,7 @@ def get_html(url, params=None):
 
 
 def save_not_found(tracks):
-    with open('not_found.txt', 'w', encoding='utf-8') as f:
+    with open('txt/not_found.txt', 'w', encoding='utf-8') as f:
         f.writelines([f'{track.author} - {track.title}\n' for track in tracks])
 
 
@@ -35,8 +48,10 @@ def check(track):
         return True
 
 
-def strip_char(word: str):
+def strip_char(word: str, find=True):
     chars = r'?*<>:"\/|'
+    if find:
+        chars = '? *<>:"\\/|)(=.,–-\''
     for char in chars:
         word = word.replace(char, '')
     return word.strip()
