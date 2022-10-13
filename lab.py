@@ -1,52 +1,37 @@
 import requests
 import urllib3
 from pathlib import Path
-from business_logic import Track, BeautifulSoup, FuzzyTrack
-from utils import get_html, UserAgent, strip_char
+from business_logic import Track, BeautifulSoup, FuzzyTrack, mp3store
+from utils import UserAgent, strip_char, SSLError, MissingSchema, InvalidSchema, get_html
 from loguru import logger as log
 import PySimpleGUI as sg
+import time
 
+
+def time_it(func):
+    def wrapper(*args, **kargs):
+        start_time = time.time()
+        res = func(*args, **kargs)
+        res_time = time.time() - start_time
+        print(f'Время выолнения {round(float(res_time), 3)}')
+        return res
+
+    return wrapper
+
+@time_it
 @log.catch
-def mp3store(track: Track):
-    if track.url:
-        return
-    base_url = 'https://mp3store.net/'
-    url = f'{base_url}get-search/{track.author} {track.title}'
-
-    html = get_html(url)
-    if not html:
-        return
-    soup = BeautifulSoup(html.text, features='html.parser')
-    results = soup.find_all('div', class_='music')[:3]
-    if not results:
-        return
-    for result in results:
-        author = result.find('b').text
-        title = result.find('div', class_='music-info').text[len(author) + 1:]
-        author, title = map(strip_char, (author, title))
-        html = get_html(base_url + result.find('a').get('href'))
-        soup = BeautifulSoup(html.text, features='html.parser')
-        url = base_url + soup.find('div', class_='info-panel').find('a').get('href')
-        if track.author.lower() in author.lower() and track.title.lower() in title.lower():
-            track.title = title
-            track.author = author
-            track.url = url
-            break
-        track.fuzzy_matches.append(FuzzyTrack(author, title, url=url))
-
-
-def mp3_download():
-    url = 'https://mp3store.net/get-music/splin-vyhoda-net-djgraff-hype-ext-mix/'
-    html = get_html(url)
-    soup = BeautifulSoup(html.text, features='html.parser')
-    mp3_url = 'https://mp3store.net/' + soup.find('div', class_='info-panel').find('a').get('href')
-    response = requests.request("GET", mp3_url, stream=True, data=None, headers={'User-Agent': UserAgent().random})
-    log.debug(response.headers)
-
+def pars_YM(path):
+    with open(path, encoding='utf-8') as f:
+        tarcks = f.readlines()
+    for track in tarcks:
+        log.debug(track)
+        url = 'https://music.yandex.ru/search'
+        ua = 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 YaBrowser/22.9.1 Yowser/2.5 Safari/537.36'
+        html = requests.get(url, headers={'User-Agent': ua}, params={'text': track}).text
+        soup = BeautifulSoup(html, features='html.parser')
+        author = soup.find('span', class_='d-track__artists').find('a').get('title')
+        title = soup.find('div', class_='d-track__name').get('title')
+        log.info(f'{author} - {title}')
 
 if __name__ == '__main__':
-    tr = Track('алое вера', 'ты что такой')
-    # tr = Track('sasf','me')
-    mp3store(tr)
-    log.debug(tr)
-    # mp3_download()
+    pars_YM('ira_playlist.txt')

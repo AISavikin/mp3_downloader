@@ -3,18 +3,20 @@ import requests
 from pathlib import Path
 from fake_useragent import UserAgent
 from loguru import logger as log
-from requests.exceptions import SSLError, MissingSchema
+from requests.exceptions import SSLError, MissingSchema, InvalidSchema
 
 
 def get_html(url, params=None):
-    ua = UserAgent()
     try:
-        html = requests.get(url, headers={'User-Agent': ua.random}, params=params)
+        html = requests.get(url, headers={'User-Agent': UserAgent().random}, params=params)
     except SSLError:  # Проверка существование url
         log.error('URL Не существует')
         return
     except MissingSchema:  # Проверка на схему (http/https)
         log.error('Не указана схема (http/https)')
+        return
+    except InvalidSchema:
+        log.error('Неверная схема (http/https)')
         return
     if html.status_code != 200:
         log.error(f'Ошибка сервера код: {html}')
@@ -40,16 +42,24 @@ def strip_char(word: str):
     return word.strip()
 
 
-def download(track, progress):
+def download(track, progress=None):
     file_name = Path('MP3', f'{track.author} - {track.title}.mp3')
-    response = requests.request("GET", track.url, stream=True, data=None, headers=None)
-    max_val = int(response.headers['Content-Length']) / 10000
-    with open(file_name, 'ab') as f:
-        for i, chunk in enumerate(response.iter_content(chunk_size=10000)):
-            if chunk:
-                f.write(chunk)
-                progress.Update(i, max_val - 1)
-
+    response = get_html(track.url)
+    if not response:
+        return
+    if not progress:
+        with open(file_name, 'wb') as f:
+            f.write(response.content)
+        return
+    try:
+        max_val = int(response.headers['Content-Length']) / 10000
+        with open(file_name, 'ab') as f:
+            for i, chunk in enumerate(response.iter_content(chunk_size=10000)):
+                if chunk:
+                    f.write(chunk)
+                    progress.Update(i, max_val - 1)
+    except KeyError:
+        track.url = ''
 
 def start_download(window, tracks):
     progress_bar = window['progress']

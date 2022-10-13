@@ -75,11 +75,11 @@ def fuzzy_matches(track_list):
     tracks = [track for track in track_list if not track.url and track.fuzzy_matches]
     column = []
     for track in tracks:
-        column.append([sg.Frame(f'{track.author} - {track.title}', [], expand_x=True)])
+        column.append([sg.Frame(f'{track.author} - {track.title[:34]}', [], expand_x=True)])
     for indx, frame in enumerate(column):
         frame[0].layout(
             [[sg.Button('▶', k=f'{indx}|{tracks[indx].fuzzy_matches.index(fuzz)}'), sg.Button('⏸'),
-              sg.Radio(f'{fuzz.author} - {fuzz.title[:23]}', indx, k=f'{indx}:{tracks[indx].fuzzy_matches.index(fuzz)}')]
+              sg.Radio(f'{fuzz.author} - {fuzz.title[:34]}', indx, k=f'{indx}:{tracks[indx].fuzzy_matches.index(fuzz)}')]
              for fuzz in tracks[indx].fuzzy_matches])
 
     layout = [
