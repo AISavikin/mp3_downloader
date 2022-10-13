@@ -35,14 +35,15 @@ def get_html(url, params=None):
         log.error(f'Ошибка сервера код: {html}')
     return html
 
-
 def save_not_found(tracks):
     with open('txt/not_found.txt', 'w', encoding='utf-8') as f:
         f.writelines([f'{track.author} - {track.title}\n' for track in tracks])
 
 
 def check(track):
-    file_name = Path('MP3', f'{track.author} - {track.title}.mp3')
+    # file_name = Path('MP3', f'{track.author} - {track.title}.mp3')
+    file_name = f'D:\Музыка\!!!Неразобранное\{track.author} - {track.title}.mp3'
+
     if os.path.exists(file_name):
         log.info(f'{file_name} Уже существует')
         return True
@@ -58,7 +59,8 @@ def strip_char(word: str, find=True):
 
 
 def download(track, progress=None):
-    file_name = Path('MP3', f'{track.author} - {track.title}.mp3')
+    # file_name = Path('MP3', f'{track.author} - {track.title}.mp3')
+    file_name = f'D:\Музыка\!!!Неразобранное\{track.author} - {track.title}.mp3'
     response = get_html(track.url)
     if not response:
         return

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
-from utils import check, get_html, log, strip_char, time_it
+from utils import get_html, log, strip_char, time_it
 from bs4 import BeautifulSoup
-
+import multiprocessing
 
 @dataclass
 class FuzzyTrack:
@@ -14,8 +14,6 @@ class FuzzyTrack:
 class Track(FuzzyTrack):
     fuzzy_matches: list = field(default_factory=list)
 
-
-@log.catch
 def get_track_list(path):
     """
     Создает список объектов типа Track, из TXT-файла
@@ -23,6 +21,7 @@ def get_track_list(path):
     :return:
     """
     track_list = []
+
     with open(path, encoding='UTF-8') as f:
         tracks = f.readlines()
     delimetr = ' - '
@@ -35,33 +34,29 @@ def get_track_list(path):
         track_list.append(Track(author, title))
     return track_list
 
-def find_tracks(window, path, res: list):
+def find_tracks(window, path, res:list):
     try:
         tracks = get_track_list(path)
     except FileNotFoundError:
         window['log'].update(f'Файл не найден!')
         return
+    funcs = (musify, drivemusic, mp3bob, mp3store)
     progress_bar = window['progress']
     progress_bar.Update(visible=True)
-    for i, track in enumerate(tracks, 1):
-        if check(track):
-            progress_bar.update_bar(i, len(tracks))
-            continue
-        window['log'].update(f'Поиск:\n{track.author[:37]} - {track.title[:37]}')
-        musify(track)
-        drivemusic(track)
-        mp3bob(track)
-        mp3store(track)
-        res.append(track)
-        progress_bar.update_bar(i, len(tracks))
+    for i, func in enumerate(funcs, 1):
+        window['log'].update(f'Поиск на сайте:\n{func}')
+        tracks = multy(tracks, func)
+        progress_bar.update_bar(i, len(funcs))
     window['save'].Update(disabled=False)
     window['download'].Update(disabled=False)
     progress_bar.Update(visible=False)
+    res.extend(tracks)
+    return tracks
 
-# @time_it
+
 def musify(track: Track):
     if track.url:
-        return
+        return track
     author_fs = strip_char(track.author)
     title_fs = strip_char(track.title)
     url = 'https://w1.musify.club/search'
@@ -70,12 +65,12 @@ def musify(track: Track):
     }
     html = get_html(url, params)
     if not html:
-        return
+        return track
     soup = BeautifulSoup(html.text, features='html.parser')
     results = soup.find_all('div', class_='playlist__item')[:2]
     if not results:
         log.error(f'{track.author} - {track.title}: Не найдено')
-        return
+        return track
     for result in results:
         author = result.find_all('a')[0].text
         title = result.find_all('a')[1].text
@@ -88,16 +83,16 @@ def musify(track: Track):
             track.title = strip_char(title, find=False)
             track.author = strip_char(author, find=False)
             track.url = url
-            break
+            track.fuzzy_matches = None
+            return track
         log.debug(f'{track.author} - {track.title}: Не точное совпадение')  # LOGS
         log.debug(f'{author} - {title}')  # LOGS
         track.fuzzy_matches.append(FuzzyTrack(author, title, url=url))
+    return track
 
-
-@time_it
 def drivemusic(track):
     if track.url:
-        return
+        return track
     author_fs = strip_char(track.author)
     title_fs = strip_char(track.title)
     url = 'https://ru-drivemusic.net/'
@@ -108,11 +103,11 @@ def drivemusic(track):
     }
     html = get_html(url, params)
     if not html:
-        return
+        return track
     soup = BeautifulSoup(html.text, features='html.parser')
     if 'ничего не найдено' in soup.find('h1').text:
         log.error(f'{track.author} - {track.title}: Не найдено')
-        return
+        return track
     results = soup.find_all('div', class_='genre-music inline_player_playlist_main')
     for result in results:
         hrefs = result.find_all('a')
@@ -125,15 +120,16 @@ def drivemusic(track):
             track.title = strip_char(title, find=False)
             track.author = strip_char(author, find=False)
             track.url = url
-            break
+            track.fuzzy_matches = None
+            return track
         log.debug(f'{track.author} - {track.title}: Не точное совпадение')  # LOGS
         log.debug(f'{author} - {title}')  # LOGS
         track.fuzzy_matches.append(FuzzyTrack(author, title, url=url))
+    return track
 
-@time_it
 def mp3bob(track):
     if track.url:
-        return
+        return track
     author_fs = strip_char(track.author)
     title_fs = strip_char(track.title)
     url = 'https://mp3bob.ru/'
@@ -144,12 +140,12 @@ def mp3bob(track):
     }
     html = get_html(url, params)
     if not html:
-        return
+        return track
     soup = BeautifulSoup(html.text, features='html.parser')
     results = soup.find('div', class_='wrapp sort_page')
     if 'никаких результатов' in results.text:
         log.error(f'{track.author} - {track.title}: Не найдено')
-        return
+        return track
     song_items = results.find_all('div', class_='song-item')
     for result in song_items:
         hrefs = result.find_all('a')
@@ -166,16 +162,16 @@ def mp3bob(track):
             track.title = strip_char(title, find=False)
             track.author = strip_char(author, find=False)
             track.url = url
-            break
+            track.fuzzy_matches = None
+            return track
         log.debug(f'{track.author} - {track.title}: Не точное совпадение')  # LOGS
         log.debug(f'{author} - {title}')  # LOGS
         track.fuzzy_matches.append(FuzzyTrack(author, title, url=url))
+    return track
 
-@time_it
-@log.catch()
 def mp3store(track: Track):
     if track.url:
-        return
+        return track
     log.debug(f'Ищу {track.author} - {track.title}')
     author_fs = strip_char(track.author)
     title_fs = strip_char(track.title)
@@ -184,12 +180,12 @@ def mp3store(track: Track):
 
     html = get_html(url)
     if not html:
-        return
+        return track
     soup = BeautifulSoup(html.text, features='html.parser')
     results = soup.find_all('div', class_='music')[:5]
     if not results:
         log.error(f'{track.author} - {track.title}: Не найдено')  # LOGS
-        return
+        return track
     for result in results:
         author = result.find('b').text
         title = result.find('div', class_='music-info').text[len(author) + 1:]
@@ -204,7 +200,16 @@ def mp3store(track: Track):
             track.title = strip_char(title, find=False)
             track.author = strip_char(author, find=False)
             track.url = url
-            break
+            track.fuzzy_matches = None
+            return track
         log.debug(f'{track.author} - {track.title}: Не точное совпадение')  # LOGS
         log.debug(f'{author} - {title}')  # LOGS
         track.fuzzy_matches.append(FuzzyTrack(author, title, url=url))
+    return track
+
+@time_it
+def multy(tracklist, func):
+    with multiprocessing.Pool(16) as p:
+        res = p.map(func, tracklist)
+    return res
+
